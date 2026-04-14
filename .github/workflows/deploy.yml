@@ -1,0 +1,40 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npm run test:coverage
+
+      - name: Package for deployment
+        run: |
+          mkdir -p deploy
+          cp -r dist deploy/
+          cp -r knowledge-base deploy/
+          cp package.json package-lock.json deploy/
+          cd deploy && npm ci --omit=dev
+          zip -r ../release.zip .
+
+      - name: Deploy to Azure App Service
+        if: ${{ vars.AZURE_CONFIGURED == 'true' }}
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ vars.AZURE_APP_NAME }}
+          package: release.zip
+
+      - name: Health check
+        if: ${{ vars.AZURE_CONFIGURED == 'true' }}
+        run: curl -sf https://${{ vars.AZURE_APP_NAME }}.azurewebsites.net/health

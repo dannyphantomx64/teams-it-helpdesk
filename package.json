@@ -1,0 +1,42 @@
+{
+  "name": "teams-it-helpdesk",
+  "version": "1.0.0",
+  "description": "Microsoft Teams IT Help Desk bot with RAG-powered knowledge base and ticket escalation",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "ingest": "ts-node src/knowledge/ingester.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "PRIVATE",
+  "dependencies": {
+    "@azure/identity": "^4.13.1",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "botbuilder": "^4.23.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "fast-glob": "^3.3.3",
+    "openai": "^6.34.0",
+    "pdf-parse": "^2.4.5",
+    "uuid": "^13.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.6.0",
+    "@types/pdf-parse": "^1.1.5",
+    "@types/uuid": "^10.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^6.0.2"
+  }
+}
