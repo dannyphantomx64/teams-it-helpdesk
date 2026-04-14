@@ -11,7 +11,8 @@ Rules:
 - Use numbered steps for procedures
 - Include [Source N] citations when referencing specific documents
 - Never guess, speculate, or make up information
-- For security-sensitive topics (passwords, access), always recommend official IT channels`;
+- For security-sensitive topics (passwords, access), always recommend official IT channels
+- If the user references a previous message, use the conversation history for context`;
 
 let client: OpenAI | null = null;
 
@@ -34,24 +35,35 @@ export interface BotResponse {
 }
 
 export class Responder {
-  async generateAnswer(query: string, results: SearchResult[]): Promise<BotResponse> {
-    // In dev mode without Azure credentials, return content directly from knowledge base
+  async generateAnswer(
+    query: string,
+    results: SearchResult[],
+    conversationHistory: { role: 'user' | 'assistant'; content: string }[] = [],
+  ): Promise<BotResponse> {
     if (config.nodeEnv === 'development' && !config.azureOpenAiApiKey) {
       return this.devModeResponse(query, results);
     }
 
     const sourceDocs = results.map(
-      (r, i) => `[Source ${i + 1}] (${r.chunk.title})\n${r.chunk.content}`
+      (r, i) => `[Source ${i + 1}] (${r.chunk.title})\n${r.chunk.content}`,
     );
 
     const userMessage = `Documentation:\n${sourceDocs.join('\n\n---\n\n')}\n\nEmployee question: ${query}`;
 
+    const messages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
+      { role: 'system', content: SYSTEM_PROMPT },
+    ];
+
+    // Include conversation history for multi-turn context
+    for (const msg of conversationHistory) {
+      messages.push({ role: msg.role, content: msg.content });
+    }
+
+    messages.push({ role: 'user', content: userMessage });
+
     const response = await getClient().chat.completions.create({
       model: config.azureOpenAiDeployment,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage },
-      ],
+      messages,
       temperature: 0,
       max_tokens: 1024,
     });

@@ -1,4 +1,4 @@
-import { DocumentChunk, SearchResult } from './types';
+import { DocumentChunk, SearchResult, IVectorStore } from './types';
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0;
@@ -12,10 +12,10 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB) || 1);
 }
 
-export class VectorStore {
+export class InMemoryVectorStore implements IVectorStore {
   private chunks: DocumentChunk[] = [];
 
-  upsert(chunks: DocumentChunk[]): void {
+  async upsert(chunks: DocumentChunk[]): Promise<void> {
     for (const chunk of chunks) {
       const idx = this.chunks.findIndex((c) => c.id === chunk.id);
       if (idx >= 0) {
@@ -26,7 +26,7 @@ export class VectorStore {
     }
   }
 
-  search(queryEmbedding: number[], topN: number): SearchResult[] {
+  async search(queryEmbedding: number[], topN: number): Promise<SearchResult[]> {
     return this.chunks
       .map((chunk) => ({
         chunk,
@@ -36,7 +36,7 @@ export class VectorStore {
       .slice(0, topN);
   }
 
-  size(): number {
+  async size(): Promise<number> {
     return this.chunks.length;
   }
 

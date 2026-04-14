@@ -3,9 +3,13 @@ import { Retriever } from '../services/retriever';
 import { Responder } from '../services/responder';
 import { EscalationService, EscalationTicket } from '../services/escalation';
 import { QuestionLogger } from '../services/questionLog';
+import { ConversationMemory } from '../services/conversationMemory';
+import { NotificationService } from '../services/notifications';
+import { detectAndTranslate, translateResponse } from '../services/translator';
 import { createAnswerCard } from './cards/answerCard';
 import { createEscalationCard } from './cards/escalationCard';
 import { createWelcomeCard } from './cards/welcomeCard';
+import { createNotificationCard } from './cards/notificationCard';
 
 export class HelpDeskBot extends TeamsActivityHandler {
   constructor(
@@ -13,6 +17,8 @@ export class HelpDeskBot extends TeamsActivityHandler {
     private responder: Responder,
     private escalation: EscalationService,
     private questionLogger: QuestionLogger,
+    private conversationMemory: ConversationMemory,
+    private notificationService: NotificationService,
   ) {
     super();
 
@@ -40,8 +46,22 @@ export class HelpDeskBot extends TeamsActivityHandler {
 
       await context.sendActivity({ type: 'typing' });
 
+      // Show active outage/maintenance notifications
+      const activeNotifications = this.notificationService.getActive();
+      for (const notif of activeNotifications) {
+        await context.sendActivity({ attachments: [createNotificationCard(notif)] });
+      }
+
       try {
-        const { results, confident } = await this.retriever.retrieve(query);
+        const conversationId = context.activity.conversation.id;
+
+        // Multi-language: detect language and translate to English for retrieval
+        const { detectedLanguage, translatedQuery } = await detectAndTranslate(query);
+
+        // Get conversation history for multi-turn context
+        const history = this.conversationMemory.getHistory(conversationId);
+
+        const { results, confident } = await this.retriever.retrieve(translatedQuery);
 
         if (!confident) {
           this.questionLogger.log({
@@ -53,20 +73,30 @@ export class HelpDeskBot extends TeamsActivityHandler {
             topScore: 0,
           });
 
+          let fallbackMessage =
+            "I couldn't find a verified answer for that in our IT documentation. I'd recommend reaching out to the IT team directly, or I can create a support ticket for you.";
+
+          fallbackMessage = await translateResponse(fallbackMessage, detectedLanguage);
+
           const card = createAnswerCard({
             question: query,
-            answer:
-              "I couldn't find a verified answer for that in our IT documentation. I'd recommend reaching out to the IT team directly, or I can create a support ticket for you.",
+            answer: fallbackMessage,
             sources: [],
             needsEscalation: true,
           });
+
+          this.conversationMemory.addMessage(conversationId, 'user', query);
+          this.conversationMemory.addMessage(conversationId, 'assistant', fallbackMessage);
 
           await context.sendActivity({ attachments: [card] });
           await next();
           return;
         }
 
-        const response = await this.responder.generateAnswer(query, results);
+        const response = await this.responder.generateAnswer(translatedQuery, results, history);
+
+        // Translate response back to user's language
+        const translatedAnswer = await translateResponse(response.answer, detectedLanguage);
 
         this.questionLogger.log({
           timestamp: new Date().toISOString(),
@@ -77,9 +107,13 @@ export class HelpDeskBot extends TeamsActivityHandler {
           topScore: results[0]?.score ?? 0,
         });
 
+        // Store in conversation memory
+        this.conversationMemory.addMessage(conversationId, 'user', query);
+        this.conversationMemory.addMessage(conversationId, 'assistant', translatedAnswer);
+
         const card = createAnswerCard({
           question: query,
-          answer: response.answer,
+          answer: translatedAnswer,
           sources: response.sources,
           needsEscalation: response.needsEscalation,
         });

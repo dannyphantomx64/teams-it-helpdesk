@@ -1,4 +1,4 @@
-import { VectorStore } from '../../knowledge/vectorStore';
+import { InMemoryVectorStore } from '../../knowledge/vectorStore';
 import { DocumentChunk } from '../../knowledge/types';
 
 function makeChunk(id: string, embedding: number[]): DocumentChunk {
@@ -12,62 +12,62 @@ function makeChunk(id: string, embedding: number[]): DocumentChunk {
   };
 }
 
-describe('VectorStore', () => {
-  let store: VectorStore;
+describe('InMemoryVectorStore', () => {
+  let store: InMemoryVectorStore;
 
   beforeEach(() => {
-    store = new VectorStore();
+    store = new InMemoryVectorStore();
   });
 
-  it('starts empty', () => {
-    expect(store.size()).toBe(0);
+  it('starts empty', async () => {
+    expect(await store.size()).toBe(0);
   });
 
-  it('upserts and retrieves chunks', () => {
+  it('upserts and retrieves chunks', async () => {
     const chunk = makeChunk('a', [1, 0, 0]);
-    store.upsert([chunk]);
-    expect(store.size()).toBe(1);
+    await store.upsert([chunk]);
+    expect(await store.size()).toBe(1);
   });
 
-  it('updates existing chunks on upsert', () => {
+  it('updates existing chunks on upsert', async () => {
     const original = makeChunk('a', [1, 0, 0]);
-    store.upsert([original]);
+    await store.upsert([original]);
 
     const updated = { ...original, content: 'Updated content' };
-    store.upsert([updated]);
+    await store.upsert([updated]);
 
-    expect(store.size()).toBe(1);
-    const results = store.search([1, 0, 0], 1);
+    expect(await store.size()).toBe(1);
+    const results = await store.search([1, 0, 0], 1);
     expect(results[0].chunk.content).toBe('Updated content');
   });
 
-  it('returns results sorted by similarity', () => {
-    store.upsert([
+  it('returns results sorted by similarity', async () => {
+    await store.upsert([
       makeChunk('exact', [1, 0, 0]),
       makeChunk('partial', [0.7, 0.7, 0]),
       makeChunk('unrelated', [0, 0, 1]),
     ]);
 
-    const results = store.search([1, 0, 0], 3);
+    const results = await store.search([1, 0, 0], 3);
     expect(results[0].chunk.id).toBe('exact');
     expect(results[0].score).toBeGreaterThan(results[1].score);
     expect(results[1].score).toBeGreaterThan(results[2].score);
   });
 
-  it('respects topN limit', () => {
-    store.upsert([
+  it('respects topN limit', async () => {
+    await store.upsert([
       makeChunk('a', [1, 0, 0]),
       makeChunk('b', [0, 1, 0]),
       makeChunk('c', [0, 0, 1]),
     ]);
 
-    const results = store.search([1, 0, 0], 2);
+    const results = await store.search([1, 0, 0], 2);
     expect(results).toHaveLength(2);
   });
 
-  it('clears all chunks', () => {
-    store.upsert([makeChunk('a', [1, 0, 0])]);
+  it('clears all chunks', async () => {
+    await store.upsert([makeChunk('a', [1, 0, 0])]);
     store.clear();
-    expect(store.size()).toBe(0);
+    expect(await store.size()).toBe(0);
   });
 });

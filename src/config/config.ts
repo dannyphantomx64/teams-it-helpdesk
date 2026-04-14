@@ -14,12 +14,19 @@ const configSchema = z.object({
   azureOpenAiEmbeddingDeployment: z.string().min(1),
   azureOpenAiApiKey: z.string().min(1),
   sharepointSiteUrl: z.string().url(),
+  sharepointDriveId: z.string().optional(),
+  knowledgeBaseConnectionString: z.string().optional(),
   confidenceThreshold: z.coerce.number().min(0).max(1).default(0.7),
   topN: z.coerce.number().int().positive().default(5),
   port: z.coerce.number().int().positive().default(3978),
   nodeEnv: z.enum(['development', 'staging', 'production', 'test']).default('development'),
   escalationWebhookUrl: z.string().url().optional(),
+  servicenowWebhookUrl: z.string().url().optional(),
+  jiraWebhookUrl: z.string().url().optional(),
   logDir: z.string().default('./logs'),
+  indexIntervalMinutes: z.coerce.number().int().positive().default(60),
+  maxConversationTurns: z.coerce.number().int().positive().default(10),
+  enableTranslation: z.preprocess((v) => v === 'true', z.boolean().default(false)),
 });
 
 const devConfigSchema = z.object({
@@ -33,12 +40,19 @@ const devConfigSchema = z.object({
   azureOpenAiEmbeddingDeployment: z.string().default('text-embedding-ada-002'),
   azureOpenAiApiKey: z.string().default(''),
   sharepointSiteUrl: z.string().default(''),
+  sharepointDriveId: z.string().optional(),
+  knowledgeBaseConnectionString: z.string().optional(),
   confidenceThreshold: z.coerce.number().min(0).max(1).default(0.7),
   topN: z.coerce.number().int().positive().default(5),
   port: z.coerce.number().int().positive().default(3978),
   nodeEnv: z.enum(['development', 'test']).default('development'),
   escalationWebhookUrl: z.string().optional(),
+  servicenowWebhookUrl: z.string().optional(),
+  jiraWebhookUrl: z.string().optional(),
   logDir: z.string().default('./logs'),
+  indexIntervalMinutes: z.coerce.number().int().positive().default(60),
+  maxConversationTurns: z.coerce.number().int().positive().default(10),
+  enableTranslation: z.preprocess((v) => v === 'true', z.boolean().default(false)),
 });
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -55,12 +69,19 @@ function loadConfig(): AppConfig {
     azureOpenAiEmbeddingDeployment: process.env.AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
     azureOpenAiApiKey: process.env.AZURE_OPENAI_API_KEY,
     sharepointSiteUrl: process.env.SHAREPOINT_SITE_URL,
+    sharepointDriveId: process.env.SHAREPOINT_DRIVE_ID || undefined,
+    knowledgeBaseConnectionString: process.env.KNOWLEDGE_BASE_CONNECTION_STRING || undefined,
     confidenceThreshold: process.env.CONFIDENCE_THRESHOLD,
     topN: process.env.TOP_N,
     port: process.env.PORT,
     nodeEnv: process.env.NODE_ENV,
     escalationWebhookUrl: process.env.ESCALATION_WEBHOOK_URL || undefined,
+    servicenowWebhookUrl: process.env.SERVICENOW_WEBHOOK_URL || undefined,
+    jiraWebhookUrl: process.env.JIRA_WEBHOOK_URL || undefined,
     logDir: process.env.LOG_DIR,
+    indexIntervalMinutes: process.env.INDEX_INTERVAL_MINUTES,
+    maxConversationTurns: process.env.MAX_CONVERSATION_TURNS,
+    enableTranslation: process.env.ENABLE_TRANSLATION,
   };
 
   const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';

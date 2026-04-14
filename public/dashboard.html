@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IT Help Desk - Analytics Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; color: #1a1a2e; padding: 2rem; }
+    h1 { margin-bottom: 0.5rem; font-size: 1.8rem; }
+    .subtitle { color: #666; margin-bottom: 2rem; font-size: 0.95rem; }
+    .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+    .card { background: white; padding: 1.5rem; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .metric-value { font-size: 2.2rem; font-weight: 700; line-height: 1.2; }
+    .metric-label { color: #888; font-size: 0.85rem; margin-top: 0.25rem; }
+    .green .metric-value { color: #059669; }
+    .red .metric-value { color: #dc2626; }
+    .blue .metric-value { color: #2563eb; }
+    .purple .metric-value { color: #7c3aed; }
+    h2 { font-size: 1rem; margin-bottom: 1rem; color: #333; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.6rem 0.75rem; font-weight: 600; color: #888; font-size: 0.8rem; text-transform: uppercase; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+    tr:hover td { background: #f9fafb; }
+    .bar-chart { display: flex; align-items: flex-end; gap: 3px; height: 140px; padding-bottom: 24px; }
+    .bar { background: #2563eb; border-radius: 3px 3px 0 0; min-width: 14px; flex: 1; transition: background 0.15s; cursor: pointer; }
+    .bar:hover { background: #1d4ed8; }
+    .empty { text-align: center; padding: 2rem; color: #aaa; }
+    .loading { text-align: center; padding: 4rem; color: #888; font-size: 1.1rem; }
+    .hidden { display: none; }
+    @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } body { padding: 1rem; } }
+  </style>
+</head>
+<body>
+  <h1>IT Help Desk Analytics</h1>
+  <p class="subtitle">Question volume, answer rates, and knowledge gaps</p>
+
+  <div id="loading" class="loading">Loading analytics data...</div>
+
+  <div id="dashboard" class="hidden">
+    <div class="metrics">
+      <div class="card blue"><div class="metric-value" id="totalQuestions">0</div><div class="metric-label">Total Questions</div></div>
+      <div class="card green"><div class="metric-value" id="answerRate">0%</div><div class="metric-label">Answer Rate</div></div>
+      <div class="card red"><div class="metric-value" id="escalationRate">0%</div><div class="metric-label">Escalation Rate</div></div>
+      <div class="card purple"><div class="metric-value" id="avgConfidence">0%</div><div class="metric-label">Avg Confidence</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Daily Question Volume</h2>
+      <div id="chartContainer" class="bar-chart"></div>
+      <div id="chartEmpty" class="empty hidden">No data yet. Questions will appear here once employees start using the bot.</div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>Top Questions</h2>
+        <table id="topQuestionsTable"><thead><tr><th>Question</th><th>Count</th></tr></thead><tbody></tbody></table>
+        <div id="topQuestionsEmpty" class="empty hidden">No questions recorded yet.</div>
+      </div>
+      <div class="card">
+        <h2>Knowledge Gaps (Unanswered)</h2>
+        <table id="gapsTable"><thead><tr><th>Question</th><th>Count</th></tr></thead><tbody></tbody></table>
+        <div id="gapsEmpty" class="empty hidden">No knowledge gaps detected.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function load() {
+      try {
+        const res = await fetch('/api/analytics');
+        const data = await res.json();
+        render(data);
+      } catch (e) {
+        document.getElementById('loading').textContent = 'Failed to load analytics. Is the bot running?';
+      }
+    }
+
+    function render(d) {
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('dashboard').classList.remove('hidden');
+
+      // Metrics
+      document.getElementById('totalQuestions').textContent = String(d.totalQuestions);
+      document.getElementById('answerRate').textContent = (d.answerRate * 100).toFixed(1) + '%';
+      document.getElementById('escalationRate').textContent = (d.escalationRate * 100).toFixed(1) + '%';
+      document.getElementById('avgConfidence').textContent = (d.averageConfidence * 100).toFixed(0) + '%';
+
+      // Chart
+      var chart = document.getElementById('chartContainer');
+      var chartEmpty = document.getElementById('chartEmpty');
+      var days = d.dailyVolume.slice(-30);
+
+      if (days.length === 0) {
+        chart.classList.add('hidden');
+        chartEmpty.classList.remove('hidden');
+      } else {
+        var maxCount = Math.max.apply(null, days.map(function(v) { return v.count; }));
+        days.forEach(function(v) {
+          var bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.height = ((v.count / (maxCount || 1)) * 100) + '%';
+          bar.title = v.date + ': ' + v.count + ' questions';
+          chart.appendChild(bar);
+        });
+      }
+
+      // Tables
+      fillTable('topQuestionsTable', 'topQuestionsEmpty', d.topQuestions);
+      fillTable('gapsTable', 'gapsEmpty', d.unansweredTopics);
+    }
+
+    function fillTable(tableId, emptyId, items) {
+      var tbody = document.getElementById(tableId).querySelector('tbody');
+      var emptyEl = document.getElementById(emptyId);
+
+      if (items.length === 0) {
+        document.getElementById(tableId).classList.add('hidden');
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+
+      items.forEach(function(item) {
+        var tr = document.createElement('tr');
+        var tdQ = document.createElement('td');
+        tdQ.textContent = item.question;
+        var tdC = document.createElement('td');
+        tdC.textContent = String(item.count);
+        tr.appendChild(tdQ);
+        tr.appendChild(tdC);
+        tbody.appendChild(tr);
+      });
+    }
+
+    load();
+  </script>
+</body>
+</html>

@@ -18,3 +18,9 @@ export interface RawDocument {
   source: string;
   category: string;
 }
+
+export interface IVectorStore {
+  upsert(chunks: DocumentChunk[]): Promise<void>;
+  search(queryEmbedding: number[], topN: number): Promise<SearchResult[]>;
+  size(): Promise<number>;
+}
